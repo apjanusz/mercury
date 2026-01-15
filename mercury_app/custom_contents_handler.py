@@ -1,3 +1,6 @@
+# Copyright MLJAR Sp. z o.o.
+# Licensed under the Apache License, Version 2.0 (Apache-2.0)
+
 import datetime
 
 from jupyter_server.services.contents.handlers import ContentsHandler
@@ -11,7 +14,17 @@ def convert_datetimes(obj):
     elif isinstance(obj, list):
         return [convert_datetimes(i) for i in obj]
     elif isinstance(obj, datetime.datetime):
-        return obj.isoformat() + "Z"
+        dt = obj
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        try:
+            dt = dt.astimezone(datetime.timezone.utc)
+        except Exception:
+            pass
+        iso = dt.isoformat()
+        if iso.endswith("+00:00"):
+            iso = iso[:-6] + "Z"
+        return iso
     else:
         return obj
 

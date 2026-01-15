@@ -1,4 +1,6 @@
-__version__ = "3.0.0a12"
+__version__ = "3.0.0rc1"
+
+from IPython.display import display
 
 # input widgets
 from .button import Button
@@ -30,4 +32,3 @@ from .chat.chat import Chat
 from .chat.chatinput import ChatInput
 from .chat.message import Message 
 
-from IPython.display import display

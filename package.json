@@ -1,6 +1,6 @@
 {
     "name": "@mljar/mercury-meta",
-    "version": "3.0.0-alpha.12",
+    "version": "3.0.0-rc.1",
     "description": "Mercury Framework",
     "keywords": [
         "jupyter",
@@ -26,6 +26,12 @@
     "repository": {
         "type": "git",
         "url": "https://github.com/mljar/mercury.git"
+    },
+    "resolutions": {
+        "@microsoft/fast-colors": "5.3.1",
+        "@microsoft/fast-element": "1.12.0",
+        "@microsoft/fast-foundation": "2.49.4",
+        "@microsoft/fast-web-utilities": "5.4.1"
     },
     "scripts": {
         "build": "jlpm run clean && jlpm workspaces foreach -Atp run build && jlpm run check:artifacts",

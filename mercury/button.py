@@ -128,13 +128,11 @@ class ButtonWidget(anywidget.AnyWidget):
 
       btn.addEventListener("click", () => {
         if (model.get("disabled")) return;
-        console.log('button click');
         const current = model.get("n_clicks") || 0;
         model.set("n_clicks", current + 1);
         model.set("last_clicked_at", new Date().toISOString());
         model.set("value", true);
         model.save_changes();
-        console.log('button save_changes');
         // model.send({ type: "clicked", n_clicks: current + 1 });
       });
 
@@ -149,30 +147,6 @@ class ButtonWidget(anywidget.AnyWidget):
       el.appendChild(container);
 
       syncFromModel();
-
-      // ---- read cell id (no DOM modifications) ----
-      /*
-      const ID_ATTR = "data-cell-id";
-      const hostWithId = el.closest(`[${ID_ATTR}]`);
-      const cellId = hostWithId ? hostWithId.getAttribute(ID_ATTR) : null;
-
-      if (cellId) {
-        model.set("cell_id", cellId);
-        model.save_changes();
-        model.send({ type: "cell_id_detected", value: cellId });
-      } else {
-        const mo = new MutationObserver(() => {
-          const host = el.closest(`[${ID_ATTR}]`);
-          const newId = host?.getAttribute(ID_ATTR);
-          if (newId) {
-            model.set("cell_id", newId);
-            model.save_changes();
-            model.send({ type: "cell_id_detected", value: newId });
-            mo.disconnect();
-          }
-        });
-        mo.observe(document.body, { attributes: true, subtree: true, attributeFilter: [ID_ATTR] });
-      }*/
     }
     export default { render };
     """
