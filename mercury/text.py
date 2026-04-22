@@ -120,30 +120,32 @@ class TextInputWidget(anywidget.AnyWidget):
 
       syncFromModel();
 
-      /*
-      // ---- read cell id (no DOM modifications) ----
       const ID_ATTR = "data-cell-id";
-      const hostWithId = el.closest(`[${ID_ATTR}]`);
-      const cellId = hostWithId ? hostWithId.getAttribute(ID_ATTR) : null;
-
-      if (cellId) {
-        model.set("cell_id", cellId);
+      const reportCellId = value => {
+        if (!value || model.get("cell_id") === value) return;
+        model.set("cell_id", value);
         model.save_changes();
-        model.send({ type: "cell_id_detected", value: cellId });
+        model.send({ type: "cell_id_detected", value });
+      };
+
+      const readCellId = () => {
+        const hostWithId = el.closest(`[${ID_ATTR}]`);
+        return hostWithId ? hostWithId.getAttribute(ID_ATTR) : null;
+      };
+
+      const initialCellId = readCellId();
+      if (initialCellId) {
+        reportCellId(initialCellId);
       } else {
         const mo = new MutationObserver(() => {
-          const host = el.closest(`[${ID_ATTR}]`);
-          const newId = host?.getAttribute(ID_ATTR);
-          if (newId) {
-            model.set("cell_id", newId);
-            model.save_changes();
-            model.send({ type: "cell_id_detected", value: newId });
+          const nextCellId = readCellId();
+          if (nextCellId) {
+            reportCellId(nextCellId);
             mo.disconnect();
           }
         });
         mo.observe(document.body, { attributes: true, subtree: true, attributeFilter: [ID_ATTR] });
       }
-      */
     }
     export default { render };
     """

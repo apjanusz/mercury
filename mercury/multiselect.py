@@ -455,6 +455,37 @@ class MultiSelectWidget(anywidget.AnyWidget):
       setOpen(false);
       syncEditingState();
 
+      const ID_ATTR = "data-cell-id";
+      const reportCellId = value => {
+        if (!value || model.get("cell_id") === value) return;
+        model.set("cell_id", value);
+        model.save_changes();
+        model.send({ type: "cell_id_detected", value });
+      };
+
+      const readCellId = () => {
+        const hostWithId = el.closest(`[${ID_ATTR}]`);
+        return hostWithId ? hostWithId.getAttribute(ID_ATTR) : null;
+      };
+
+      const initialCellId = readCellId();
+      if (initialCellId) {
+        reportCellId(initialCellId);
+      } else {
+        const mo = new MutationObserver(() => {
+          const nextCellId = readCellId();
+          if (nextCellId) {
+            reportCellId(nextCellId);
+            mo.disconnect();
+          }
+        });
+        mo.observe(document.body, {
+          attributes: true,
+          subtree: true,
+          attributeFilter: [ID_ATTR]
+        });
+      }
+
       return () => {
         if (blurTimeout !== null) {
           window.clearTimeout(blurTimeout);

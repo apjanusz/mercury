@@ -55,6 +55,8 @@ export interface IWidgetUpdate {
   cellModelId?: string;
 }
 
+type WidgetCellMappingSource = 'output' | 'fallback';
+
 /**
  * Execution error payload
  */
@@ -241,6 +243,7 @@ export class AppModel {
     }
 
     this._ipywidgetToCellId.clear();
+    this._widgetCellMappingSource.clear();
     this._outputsToCell = new WeakMap();
 
     Signal.clearData(this);
@@ -477,10 +480,8 @@ export class AppModel {
         ) {
           const cellId = String(data.content.value ?? '');
           if (commId && cellId) {
-            this._ipywidgetToCellId.set(commId, cellId);
-            //console.log(
-            //  `[CellIDCapture] mapped widget ${commId} -> cell ${cellId} (send/custom)`
-            //);
+            this._registerWidgetCellId(commId, cellId, 'fallback');
+            this._flushPendingWidgetUpdate(commId);
             return;
           }
         }
@@ -574,14 +575,12 @@ export class AppModel {
 
     this._updateMessages.delete(commId);
     if (updateCellId && updateCellId !== '') {
-      this._ipywidgetToCellId.set(commId, updateCellId);
-    } else {
-      if (!skipEmit) {
-        this._widgetUpdated.emit({
-          widgetModelId: commId,
-          cellModelId: this._ipywidgetToCellId.get(commId)
-        });
-      }
+      this._registerWidgetCellId(commId, updateCellId, 'fallback');
+      this._flushPendingWidgetUpdate(commId);
+    }
+
+    if (!skipEmit) {
+      this._emitWidgetUpdated(commId);
     }
   }
 
@@ -623,7 +622,7 @@ export class AppModel {
       const payload = this._readMercuryPayload(output);
       const modelId = payload?.model_id;
       if (modelId) {
-        this._ipywidgetToCellId.delete(modelId);
+        this._clearWidgetCellMapping(modelId, 'output');
         this._updateMessages.delete(modelId);
         this._widgetMeta.delete(modelId);
       }
@@ -671,10 +670,75 @@ export class AppModel {
       const prev = this._widgetMeta.get(modelId);
       if (!prev || prev.position !== position || prev.cellId !== cellId) {
         this._widgetMeta.set(modelId, { cellId, position });
-        this._ipywidgetToCellId.set(modelId, cellId);
+        this._registerWidgetCellId(modelId, cellId, 'output');
         this._mercuryWidgetAdded.emit({ cellId, position });
       }
     }
+  }
+
+  /**
+   * Register widget -> cell mapping.
+   *
+   * Primary path: Mercury payload discovered in top-level cell outputs.
+   * Fallback path: widget self-reports cell_id (needed for nested widgets
+   * rendered inside ipywidgets.Output / layout containers).
+   *
+   * Output-derived mapping has priority and must not be overwritten by the
+   * fallback signal, because it is tied directly to the notebook output model.
+   */
+  private _registerWidgetCellId(
+    modelId: string,
+    cellId: string,
+    source: WidgetCellMappingSource
+  ): void {
+    const prevSource = this._widgetCellMappingSource.get(modelId);
+
+    if (source === 'fallback' && prevSource === 'output') {
+      return;
+    }
+
+    this._ipywidgetToCellId.set(modelId, cellId);
+    this._widgetCellMappingSource.set(modelId, source);
+  }
+
+  /**
+   * Emit widgetUpdated immediately when mapping is known.
+   * Otherwise keep the widget id pending and emit after fallback mapping arrives.
+   */
+  private _emitWidgetUpdated(modelId: string): void {
+    const cellModelId = this._ipywidgetToCellId.get(modelId);
+    if (!cellModelId) {
+      this._pendingWidgetUpdates.add(modelId);
+      return;
+    }
+
+    this._pendingWidgetUpdates.delete(modelId);
+    this._widgetUpdated.emit({
+      widgetModelId: modelId,
+      cellModelId
+    });
+  }
+
+  private _flushPendingWidgetUpdate(modelId: string): void {
+    if (!this._pendingWidgetUpdates.has(modelId)) {
+      return;
+    }
+    this._emitWidgetUpdated(modelId);
+  }
+
+  /** Clear mapping only when the caller owns the current mapping source. */
+  private _clearWidgetCellMapping(
+    modelId: string,
+    source: WidgetCellMappingSource
+  ): void {
+    const prevSource = this._widgetCellMappingSource.get(modelId);
+    if (prevSource && prevSource !== source) {
+      return;
+    }
+
+    this._ipywidgetToCellId.delete(modelId);
+    this._widgetCellMappingSource.delete(modelId);
+    this._pendingWidgetUpdates.delete(modelId);
   }
 
   /** Safely parse and validate Mercury output */
@@ -783,6 +847,8 @@ export class AppModel {
   private _stateChanged: Signal<this, null>;
   private _contentChanged: Signal<this, null>;
   private _ipywidgetToCellId = new Map<string, string>();
+  private _widgetCellMappingSource = new Map<string, WidgetCellMappingSource>();
+  private _pendingWidgetUpdates = new Set<string>();
   private _outputsToCell: WeakMap<IOutputAreaModel, string> = new WeakMap();
   private _widgetMeta = new Map<string, { cellId: string; position: string }>();
 
