@@ -7,6 +7,7 @@ import ipywidgets as widgets
 from IPython.display import display
 
 from .manager import WidgetsManager, MERCURY_MIMETYPE
+from .render_context import LayoutContextOutput, LayoutFrame
 from .theme import THEME
 
 def _ensure_global_expander_styles():
@@ -108,7 +109,13 @@ def Expander(label="Details", expanded=False, key=""):
 
     header = _ExpanderHeaderWidget(label=label, expanded=expanded)
 
-    out = widgets.Output()
+    out = LayoutContextOutput(
+        layout_frame=LayoutFrame(
+            layout_type="expander",
+            owner_id=code_uid,
+            slot_key="content",
+        )
+    )
     out.layout.width = "100%"
 
     content_box = widgets.Box([out], layout=widgets.Layout(width="100%"))

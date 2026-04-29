@@ -10,6 +10,7 @@ from IPython.display import HTML, display
 import traitlets
 
 from .manager import MERCURY_MIMETYPE, WidgetsManager
+from .render_context import LayoutContextOutput, LayoutFrame
 from .theme import THEME
 
 Position = Literal["sidebar", "inline", "bottom"]
@@ -53,7 +54,7 @@ class ColumnsBox(widgets.HBox):
         return data
 
 
-class ColumnOutput(widgets.Output):
+class ColumnOutput(LayoutContextOutput):
     """Output widget with a convenient .clear() alias."""
     def clear(self, wait: bool = True):
         self.clear_output(wait=wait)
@@ -123,7 +124,16 @@ def Columns(
         display(box)
         return outs
 
-    outs = tuple(ColumnOutput() for _ in range(n))
+    outs = tuple(
+        ColumnOutput(
+            layout_frame=LayoutFrame(
+                layout_type="columns",
+                owner_id=code_uid,
+                slot_key=str(i),
+            )
+        )
+        for i in range(n)
+    )
 
     box = ColumnsBox(
         children=list(outs),

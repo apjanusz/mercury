@@ -29,6 +29,7 @@ import type {
 import { ISignal, Signal } from '@lumino/signaling';
 import * as Y from 'yjs';
 import { ServerHealthMonitor } from './healthmonitor';
+import { getWidgetManager, resolveIpyModel } from './ipyWidgetsHelpers';
 
 /*************************************************
  * Constants & Types
@@ -43,6 +44,52 @@ interface IMercuryPayload {
   model_id?: string;
   position?: WidgetPosition;
   widget?: string;
+}
+
+type WidgetStateLike = Record<string, unknown>;
+
+function getWidgetSourceCellId(state: unknown): string | undefined {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) {
+    return undefined;
+  }
+
+  const widgetState = state as WidgetStateLike;
+  const sourceCellId = widgetState.source_cell_id;
+  if (typeof sourceCellId === 'string' && sourceCellId !== '') {
+    return sourceCellId;
+  }
+
+  const legacyCellId = widgetState.cell_id;
+  if (typeof legacyCellId === 'string' && legacyCellId !== '') {
+    return legacyCellId;
+  }
+
+  return undefined;
+}
+
+async function getWidgetSourceCellIdFromModel(
+  rendermime: IRenderMimeRegistry,
+  modelId: string
+): Promise<string | undefined> {
+  const manager = await getWidgetManager(rendermime);
+  if (!manager) {
+    return undefined;
+  }
+
+  const model = await resolveIpyModel(manager, modelId);
+  if (!model) {
+    return undefined;
+  }
+
+  if (typeof model.get === 'function') {
+    return getWidgetSourceCellId({
+      source_cell_id: model.get('source_cell_id'),
+      cell_id: model.get('cell_id')
+    });
+  }
+
+  const state = (model as any)?.state ?? (model as any)?.attributes ?? model;
+  return getWidgetSourceCellId(state);
 }
 
 /**
@@ -476,7 +523,7 @@ export class AppModel {
           data?.content?.type === 'cell_id_detected'
         ) {
           const cellId = String(data.content.value ?? '');
-          if (commId && cellId) {
+          if (commId && cellId && !this._ipywidgetToCellId.has(commId)) {
             this._ipywidgetToCellId.set(commId, cellId);
             //console.log(
             //  `[CellIDCapture] mapped widget ${commId} -> cell ${cellId} (send/custom)`
@@ -527,11 +574,7 @@ export class AppModel {
             this._updateMessages.has(content.comm_id)
           ) {
             const s = (d as any).state;
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            updateCellId =
-              s && typeof s === 'object' && !Array.isArray(s)
-                ? ((s as any).cell_id as string | undefined)
-                : undefined;
+            updateCellId = getWidgetSourceCellId(s);
 
             const keys = Object.keys(s);
             if (
@@ -573,15 +616,33 @@ export class AppModel {
     }
 
     this._updateMessages.delete(commId);
-    if (updateCellId && updateCellId !== '') {
-      this._ipywidgetToCellId.set(commId, updateCellId);
-    } else {
-      if (!skipEmit) {
-        this._widgetUpdated.emit({
-          widgetModelId: commId,
-          cellModelId: this._ipywidgetToCellId.get(commId)
-        });
-      }
+    void this._handleResolvedWidgetUpdate(commId, updateCellId, skipEmit);
+  }
+
+  private async _handleResolvedWidgetUpdate(
+    commId: string,
+    updateCellId: string | undefined,
+    skipEmit: boolean
+  ): Promise<void> {
+    let cellId = updateCellId;
+
+    if (!cellId || cellId === '') {
+      cellId = this._ipywidgetToCellId.get(commId);
+    }
+
+    if (!cellId || cellId === '') {
+      cellId = await getWidgetSourceCellIdFromModel(this.rendermime, commId);
+    }
+
+    if (cellId && cellId !== '') {
+      this._ipywidgetToCellId.set(commId, cellId);
+    }
+
+    if (!skipEmit) {
+      this._widgetUpdated.emit({
+        widgetModelId: commId,
+        cellModelId: cellId
+      });
     }
   }
 

@@ -4,6 +4,7 @@ import ipywidgets as widgets
 from IPython.display import display
 
 from .manager import WidgetsManager, MERCURY_MIMETYPE
+from .render_context import LayoutContextOutput, LayoutFrame
 from .theme import THEME
 
 
@@ -115,7 +116,7 @@ def _ensure_global_tabs_styles():
     display(widgets.HTML(css))
 
 
-class TabOutput(widgets.Output):
+class TabOutput(LayoutContextOutput):
     """Tab widget with a convenient .clear() alias."""
     def clear(self, wait: bool = True):
         self.clear_output(wait=wait)
@@ -176,7 +177,16 @@ def Tabs(labels=("Tab 1", "Tab 2"), active=0, key=""):
     header = _TabsHeaderWidget(labels=list(labels), active=int(active))
 
     # Create an Output per tab, wrapped in a panel Box
-    outs = tuple(TabOutput() for _ in labels)
+    outs = tuple(
+        TabOutput(
+            layout_frame=LayoutFrame(
+                layout_type="tabs",
+                owner_id=code_uid,
+                slot_key=str(i),
+            )
+        )
+        for i, _ in enumerate(labels)
+    )
     panels = []
     for i, out in enumerate(outs):
         out.layout.width = "100%"

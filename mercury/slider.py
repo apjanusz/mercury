@@ -9,6 +9,7 @@ import traitlets
 from IPython.display import display
 
 from .manager import MERCURY_MIMETYPE, WidgetsManager
+from .render_context import apply_widget_render_metadata, with_widget_render_metadata
 from .theme import THEME
 from .url_params import resolve_integer_value
 
@@ -137,10 +138,11 @@ def Slider(
     code_uid = WidgetsManager.get_code_uid("Slider", key=key, args=args, kwargs=kwargs)
     cached = WidgetsManager.get_widget(code_uid)
     if cached:
+        apply_widget_render_metadata(cached)
         display(cached)
         return cached
 
-    instance = SliderWidget(**kwargs)
+    instance = SliderWidget(**with_widget_render_metadata(kwargs))
     WidgetsManager.add_widget(code_uid, instance)
     display(instance)
     return instance
@@ -339,6 +341,9 @@ class SliderWidget(anywidget.AnyWidget):
     ).tag(sync=True)
 
     cell_id = traitlets.Unicode(allow_none=True).tag(sync=True)
+    source_cell_id = traitlets.Unicode(default_value=None, allow_none=True).tag(sync=True)
+    render_slot_id = traitlets.Unicode(default_value=None, allow_none=True).tag(sync=True)
+    layout_path = traitlets.Unicode(default_value=None, allow_none=True).tag(sync=True)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
